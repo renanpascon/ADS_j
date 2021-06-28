@@ -1,0 +1,436 @@
+---
+title: "Prova ADS"
+author: "Renan Pascon"
+date: "27/06/2021"
+output: html_document
+---
+
+
+## Questão 1
+
+Nesta questão analisei primeiramente os dados numa visão geral do Brasil, portanto uni as colunas de consumo somando os consumos para analisar cada tipo individualmente.
+
+
+```{r, echo = FALSE, fig.width = 3, fig.height = 4, warning = FALSE, message = FALSE}
+library(readxl)
+library(tidyverse)
+library(stringr)
+library(corrplot)
+library(caret)
+library(gam)
+library(randomForest)
+
+# Importando os dados
+dicionario <-  read_xlsx("Bases_Final_ADS_Jun2021.xlsx",sheet = 1)
+dados <- read_xlsx("Bases_Final_ADS_Jun2021.xlsx",sheet = 2)
+
+# Juntar as colunas por palavras chaves 
+
+comercioCol <- grep("Comércio", dicionario$descrição)
+industriaCol <- grep("Indústria", dicionario$descrição)
+residencialCol <- grep("Residencial", dicionario$descrição)
+centro <- grep("Centro Oeste", dicionario$descrição)
+norte <- grep("Norte", dicionario$descrição)
+nordeste <- grep("Nordeste", dicionario$descrição)
+sul <- grep("Sul", dicionario$descrição)
+sudeste <- grep("Sudeste", dicionario$descrição)
+consumo <- grep("Consumo", dicionario$descrição)
+PMCA <- grep("Ampliada",dicionario$descrição)
+PMCR <- grep("Restrita",dicionario$descrição)
+Tmax <- grep("Máxima",dicionario$descrição)
+Tmin <- grep("Minima",dicionario$descrição)
+Pindustrial <- grep("Produção",dicionario$descrição)
+# Consumo
+```
+
+### Comércio
+O primeiro gráfico um histograma das variáveis para saber como é a distribuição do consumo no comércio.
+Os valores têm uma distribuição até que uniforme de frequência entre acima de 4000 GWh e abaixo de 8000 GWh, com um pouco mais entre 7000 e 8000
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+Comercio <- dados[intersect(consumo,comercioCol)] %>% rowSums(na.rm = FALSE)
+hist(Comercio,breaks = 15)
+```
+<hr>
+A média do comércio:
+```{r, echo = FALSE}
+mean(Comercio,na.rm = TRUE)
+
+```
+E o desvio padrão:
+```{r, echo = FALSE}
+sd(Comercio,na.rm = TRUE)
+
+```
+
+### Indústria
+A indústria tem o maior consumo de todos os três setores com o a maior frequência de consumo em torno de 13500 GWh, e é mais comum pela distribuição os valores serem maiores do que esse valor mais frequente.
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+Industria <- dados[intersect(consumo,industriaCol)] %>% rowSums(na.rm = FALSE)
+hist(Industria,breaks = 10)
+```
+<hr>
+A média da indústria:
+```{r, echo = FALSE}
+mean(Industria,na.rm = TRUE)
+
+```
+E o desvio padrão:
+```{r, echo = FALSE}
+sd(Industria, na.rm = TRUE)
+
+```
+
+### Residencial
+A partir dessa distrubuição podemos concluir que o consumo residencial é maior do que o do comércio, sendo a indústria a maior consumidora. A distribuição entre os valores de consumo de 6000 GWh e 12000 GWh é praticamente uniforme, porem um pouco maior nos valores de 10000 GWh e 11000 GWh
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+Residencial <- dados[intersect(consumo,residencialCol)] %>% rowSums(na.rm = FALSE)
+hist(Residencial,breaks = 10)
+```
+<hr>
+A média da indústria:
+```{r, echo = FALSE}
+mean(Residencial,na.rm = TRUE)
+
+```
+E o desvio padrão:
+```{r, echo = FALSE}
+sd(Residencial, na.rm = TRUE)
+```
+
+
+### Consumo em relação ao tempo 
+
+Decidi então somar as três categorias consumidoras e ver qual é o seu desenvolvimento em relação ao tempo. Podemos observar que o cunsumo se elevou quase que linearmente de 2005 até 2014 aproximadamente e então deu uma leve estabilizada fazendo flutuações com os meses.
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+
+Total <- cbind(Comercio,Industria,Residencial) %>% rowSums(na.rm = FALSE) %>% data.frame()
+Total$data <- dados$data_tidy
+Total <- Total %>% filter(!is.na(.))
+colnames(Total) <- c("Consumo", "Data")
+Total %>% ggplot() + geom_line(aes(x = Data, y = Consumo))
+```
+
+A próxima análise separando os consumos do Brasil podemos ver que o consumo residencial foi o único que continuou subindo, já que de 2015 para frente a industria e comércio não aumentaram o cunsumo levando em consideração as mudanças das estações
+
+```{r, echo = FALSE, fig.width = 6.5, fig.height = 4, warning = FALSE, message = FALSE}
+
+consumoBR <- cbind(Comercio,Industria,Residencial) %>% data.frame()
+consumoBR$data <- as.Date(dados$data_tidy)
+consumoBR <- pivot_longer(consumoBR,Comercio:Residencial,names_to = "categoria")
+consumoBR %>%  ggplot() + geom_line(aes(x = data,y = value, color = categoria))
+```
+
+### Variáveis de População e Renda
+
+A variavies de renda  podem ser agrupadas juntas para a melhor visualização, elas tem praticamente o mesmo comportamento e coloquei a visualização lado a lado. 
+Aproximadamente a partir de 2014 a renda começão a subir linearmente até 2020 e que comparando cos os valores de consumo total do Brasil aparentemente não revela nenhuma correlação num primeiro momento
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE, out.width="50%", fig.align="default"}
+
+plot(dados$data_tidy, dados$renda_r)
+plot(dados$data_tidy, dados$massa_r)
+```
+
+A variável de população Ocupada tem um comportamento similar no crescimento linear de 2005 a 2015 em relação ao total do Brasil.
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+
+plot(dados$data_tidy, dados$pop_ocup_br)
+```
+
+### Índices de Pesquisa Mensal
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE, out.width="50%", fig.align="default"}
+PMCAmedia <- dados[PMCA] %>% rowMeans(na.rm = FALSE)
+PMCRmedia <- dados[PMCR] %>% rowMeans(na.rm = FALSE)
+plot(PMCAmedia)
+plot(PMCRmedia)
+```
+
+
+### Correlação entre as variáveis
+
+O próximo passo é verificar as correlações entre as variáveis. A primeira análise das correlações não vou levar em consideração as variáveis de renda, já que não temos os dados até março de 2012. 
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+# Unir as variaveis de região para Brasil
+PMCAmedia <- dados[PMCA] %>% rowMeans(na.rm = FALSE)
+PMCRmedia <- dados[PMCR] %>% rowMeans(na.rm = FALSE)
+Tmaxmedia <- dados[Tmax] %>% rowMeans(na.rm = FALSE)
+Tminmedia <- dados[Tmin] %>% rowMeans(na.rm = FALSE)
+Pindustrialmedia <- dados[Pindustrial] %>% rowMeans(na.rm = FALSE)
+
+dadosBR <- cbind(Comercio,Industria,Residencial,dados[c(17,18,19,20)],PMCAmedia,PMCRmedia,Tmaxmedia,Tminmedia,Pindustrialmedia)
+
+dadosBR_consumo <- dadosBR %>% filter(!is.na(Comercio)) # Retirando dados de consumo que não temos
+dadosBR_consumo <- dadosBR_consumo[-c(4,6)]   # sem as rendas
+corBR <- cor(dadosBR_consumo)
+corrplot(corBR, type="upper")
+```
+
+Gerando a matriz de correlações podemos ver que existem algumas variáveis que possuem alta correlação entre elas. O consumo de comércio e residencial tem alta correlação, assim como comércio e população ocupada. As pesquisas de comércio ampla e restrita têm altas correlações com os consumos residenciais e comerciais, assim como a população ocupada. A próxima corelação mais óbvia é a da Produção industrial com o consumo industrial;
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+# Correlaçõess com renda 
+dadosBR_consumo_renda <- dadosBR %>% filter(!is.na(Comercio), !is.na(massa_r)) # Retirando dados de consumo que não temos
+corBR <- cor(dadosBR_consumo_renda)
+corrplot(corBR, type="upper")
+```
+
+Com a renda nas análises sem considerar o período anterior a março de 2012 podemos observar que as correlações tem um comportamento diferente, o que faz sentido considerando os gráficos de consumo que tiveram comportamentos diferentes entre esses dois períodos como já mencionado. As variáveis de renda não tem correlação com o comércio, porem já tem uma correlação com a indústria e o comércio. Podemos observar outras corelações diferentes como as temperaturas máxima e mnínima com correlação ao consumo do comércio e tambem com a produção industrial na temperatura mínima.
+
+
+## Questão 2
+
+### Consumo 
+
+O Consumo industrial em GWh da região Sudeste pela data
+
+```{r, echo = FALSE, fig.width = 5.5, fig.height = 5, warning = FALSE, message = FALSE}
+# Análise pela região Sudeste
+dadosSE <- dados[c(1,sudeste,17:20)]  # Seleção de data , sudeste e variaveis de renda, pop e dias uteis
+dadosSE <- dadosSE[-c(2,4)] # Deixando somente industria
+plot(dadosSE$data_tidy, dadosSE$ind_se,type = "l",xlab = "Data", ylab = "Consumo (GWh)", main = "Indústria Região Sudeste")
+```
+
+### Correlações
+
+O primeiro passo é filtrar os dados para o sudeste e deixar apenas o consumo da indústria, então plotar as correlações.
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+
+dadosSE_consumo <- dadosSE %>% filter(!is.na(ind_se)) # Retirando dados de consumo que não temos
+
+corSE <- cor(dadosSE_consumo[-c(1,8,10)]) # correlação de consumo
+corrplot(corSE, type="upper")
+```
+
+Vamos analisar variável de consumo da indústria em relação as outras variáveis para encontrar as variáveis mais relevantes e possivelmente construir um modelo com as melhores variáveis. A produção industrial é a variável mais óbvia de correlação , também temos uma pequena correlação para a temperatura mínima e a pesquisa ampla.
+
+O próximo passo é verificar o período em que a renda começou a entrar no banco de dados.
+
+```{r, echo = FALSE, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE}
+dadosSE_renda <- dadosSE %>% filter(!is.na(renda_r), !is.na(ind_se)) # inserindo a renda e retirando os dados que não temos de consumo
+corSE_renda <- cor(dadosSE_renda[-1]) # correlação de consumo com a renda
+corrplot(corSE_renda, type="upper")
+```
+
+Naturalmente a maior correlação do consumo da indústria vem da produção industrial, mas também as rendas tiveram uma correlação no consumo e um pouco menos a PMCA.
+
+### Modelos
+
+Preparando os dados para treino e teste 
+
+```{r}
+
+##### Previsões 
+dadosSE_previsao <- dadosSE %>% filter(!is.na(ind_se))  #dados com todos os dados de consumo de industria
+
+# Função para normalizar os dados
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+dadosSE_previsao$ind_se_norm <- normalize(dadosSE_previsao$ind_se)
+dadosSE_previsao$pim_se_norm <- normalize(dadosSE_previsao$pim_se)
+
+# dividindo os sets
+
+test_index <- createDataPartition(dadosSE_previsao$ind_se_norm, times = 1, p = 0.5, list = FALSE)
+
+train_set <- dadosSE_previsao %>% slice(-test_index)  #train_set
+test_set <- dadosSE_previsao %>%  slice(test_index)    #test_set
+```
+
+
+O primeiro modelo será de regressão linear.
+
+Regressão Logistica com variável de maior correlação 
+
+```{r}
+fit <- lm(ind_se_norm ~ pim_se_norm, data = train_set)
+yPrevisao <- predict(fit,test_set)
+sqrt(mean((yPrevisao - test_set$ind_se_norm)^2))
+```
+
+Regressão Logistica com as 3 variáveis de maior correlação 
+
+
+```{r}
+fit <- lm(ind_se_norm ~ pim_se_norm +  pmc_a_se + temp_min_se, data = train_set)
+yPrevisao <- predict(fit,test_set)
+sqrt(mean((yPrevisao - test_set$ind_se_norm)^2))
+```
+
+Vamos agora inserir os dados de renda
+
+```{r}
+
+### Mesma previsão só que com a variavel de renda
+
+dadosSE_renda$ind_se_norm <- normalize(dadosSE_renda$ind_se)
+dadosSE_renda$pim_se_norm <- normalize(dadosSE_renda$pim_se)
+
+test_index <- createDataPartition(dadosSE_renda$ind_se_norm, times = 1, p = 0.5, list = FALSE)
+
+train_set <- dadosSE_renda %>% slice(-test_index)  #train_set
+test_set <- dadosSE_renda %>%  slice(test_index)    #test_set
+```
+
+Regressão Logistica com variável de maior correlação 
+
+```{r}
+fit <- lm(ind_se_norm ~ pim_se_norm, data = train_set)
+yPrevisao <- predict(fit,test_set)
+sqrt(mean((yPrevisao - test_set$ind_se_norm)^2))
+```
+
+Regressão Logistica com as 4 variáveis de maior correlação 
+
+
+```{r}
+fit <- lm(ind_se_norm ~ pim_se_norm +  pmc_a_se  + renda_r + massa_r, data = train_set)
+yPrevisao <- predict(fit,test_set)
+sqrt(mean((yPrevisao - test_set$ind_se_norm)^2))
+```
+
+Regressão Logistica com todas as variáveis com um mínino de correlação
+
+
+```{r}
+fit <- lm(ind_se_norm ~ pim_se_norm +  pmc_a_se  + renda_r + massa_r + pop_ocup_br + pmc_r_se, data = train_set)
+yPrevisao <- predict(fit,test_set)
+sqrt(mean((yPrevisao - test_set$ind_se_norm)^2))
+```
+
+Nessa primeira modelagem podemos ter uma breve noção de que as variáveis de maior correlação trouxeram resultados melhores que outros casos, no caso se incluirmos a variável de renda traz o melhor resultado apesar de termos menos dados para a análise, vou expandir esse resultado para outros tipos de modelagem
+
+
+Modelagem pelos vizinhos mais próximos (KNN)
+
+```{r, warning=FALSE}
+
+dadosSE_previsao <- dadosSE %>% filter(!is.na(ind_se), !is.na(massa_r))
+dadosSE_previsao <- dadosSE_previsao[-1]
+dadosSE_previsao$ind_se_norm <- normalize(dadosSE_previsao$ind_se)
+dadosSE_previsao <- dadosSE_previsao[-1]
+
+test_index <- createDataPartition(dadosSE_previsao$ind_se_norm, times = 1, p = 0.5, list = FALSE)
+
+train_set <- dadosSE_previsao %>% slice(-test_index)  #train_set
+test_set <- dadosSE_previsao %>%  slice(test_index)    #test_set
+
+# KNN
+# KNN
+col_index <- c(1,5,6,8)   # Colunas das 4 variáveis
+
+control <- trainControl(method = "cv", number = 10, p = .2) # Cross validation pra treinar o knn, 5 variações do train set com porcentagem de 30% de teste
+
+train_knn <- train(train_set[,col_index], train_set$ind_se_norm, method = "knn",
+                   tuneGrid = data.frame(k = seq(2, 20, 1)), data = train_set, # valores de 2 a 20 de vizinhos
+                   trControl = control)
+ggplot(train_knn, highlight = TRUE) # plotando o melhor k para o modelo
+
+# Melhor K é 
+
+fit_knn <- knn3(train_set[,col_index], factor(train_set$ind_se_norm), k = train_knn$bestTune)
+
+Y_knn <- predict(fit_knn, test_set[,col_index], type = "class")
+
+sqrt(mean((as.numeric(as.character(Y_knn)) - test_set$ind_se_norm)^2))
+
+```
+
+Próximo modelo mais simples sem cross validation e todas as variaveis
+
+```{r, warning=FALSE}
+col_index <- (1:(ncol(train_set)-1))
+
+train_knn <- train(train_set[,col_index], train_set$ind_se_norm, method = "knn",
+                   tuneGrid = data.frame(k = seq(2, 20, 1)), data = train_set, # valores de 2 a 20 de vizinhosl
+                   )
+ggplot(train_knn, highlight = TRUE) # plotando o melhor k para o modelo
+
+fit_knn <- knn3(train_set[,col_index], factor(train_set$ind_se_norm), k = train_knn$bestTune)
+
+Y_knn <- predict(fit_knn, test_set[,col_index], type = "class")
+
+sqrt(mean((as.numeric(as.character(Y_knn)) - test_set$ind_se_norm)^2))
+
+
+```
+
+Próximo modelo podemos testar o método de regressão de Loess que demanda um pouco mais de capacidade computacional.Neste método temos 2 parâmetros para testar, o span e o grau.
+
+```{r, warning=FALSE}
+grid <- expand.grid(span = seq(0.6, 1, len = 5), degree = 1)
+
+train_loess <- train(ind_se_norm ~ pim_se + massa_r + pmc_a_se, 
+                     method = "gamLoess", 
+                     tuneGrid=grid,
+                     data = train_set)
+ggplot(train_loess, highlight = TRUE)
+```
+
+
+Próximo Modelo será de random forests, o set de treino será colocado com cross - validation
+
+```{r, warning=FALSE}
+
+control <- trainControl(method="cv", number = 5)
+grid <- data.frame(mtry = c(1, 5, 10, 25, 50, 100))
+col_index <- c(1,5,8)   # Colunas das 3 variáveis sem a renda , apenas a massa de renda
+
+train_rf <-  train(train_set[, col_index], train_set$ind_se_norm, 
+                   method = "rf", 
+                   ntree = 100,
+                   trControl = control,
+                   tuneGrid = grid,
+                   nSamp = 5000)
+ggplot(train_rf)
+
+fit_rf <- randomForest(train_set[, col_index], train_set$ind_se_norm, 
+                       minNode = train_rf$bestTune$mtry)
+y_rf <- predict(fit_rf, test_set[ ,col_index])
+sqrt(mean((y_rf - test_set$ind_se_norm)^2))
+
+```
+
+```{r, warning=FALSE}
+
+control <- trainControl(method="cv", number = 5)
+grid <- data.frame(mtry = c(1, 5, 10, 25, 50, 100))
+col_index <- c(1,5,8,10)   # Colunas das 3 variáveis sem a renda , apenas a massa de renda
+
+train_rf <-  train(train_set[, col_index], train_set$ind_se_norm, 
+                   method = "rf", 
+                   ntree = 150,
+                   trControl = control,
+                   tuneGrid = grid,
+                   nSamp = 2000)
+ggplot(train_rf)
+
+fit_rf <- randomForest(train_set[, col_index], train_set$ind_se_norm, 
+                       minNode = train_rf$bestTune$mtry)
+y_rf <- predict(fit_rf, test_set[ ,col_index])
+sqrt(mean((y_rf - test_set$ind_se_norm)^2))
+
+```
+
+## Questões 3 e 4
+
+A melhor projeção foi adquirida com o método de random Forests considerando a seleção das 3 variáveis mais relevantes correlacionadas com o consumo da indústria. Utilizei uma grid para testar as possibilidades de rf, de mtry = c(1, 5, 10, 25, 50, 100) , arvores geradas a cada divisão. Também testei para 100 árvores, poderia testar para outros números para melhor acurácia, mas para um primeiro momento trouxe resultados bons com 150 arvores e 2000 amostras aleatórias.
+
+Foi obtido a menor raiz quadrática média nesse modelo, que foi utilizada para calcular a sua qualidade
+apesar do modelo de regressão linear deu resultados bem bons quando utilizamos todas as variáveis para a regressão.
+
+Tentei tambem deixar apenas as variáveis aparentemente mais úteis como critério de seleção, imaginando num set de dados maior poderia reduzir bastante o tempo de processamento do modelo. Imaginando um cenário de vida real, parece ser válido que apenas as variáveis de produção, renda e da PMCA alterem o consumo da indústria, dado que variações de temperatura por exemplo afetaria bem menos do que um consumo residencial que possuem geladeiras, chuveiros e etc.
+
+Os melhores modelos foram os de regressão linear variando entre as variáveis mais úteis com renda e também sem levar em consideração a renda e random forests foi o melhor levando em consideração apenas o período que houve renda, para previsões futuras acredito que com essas 3 variáveis poderiamos modelar bem com random forests o consumo dos próximos 24 meses, considerando um RMSE de aproximadamete 0,08.
+
+Podemos explorar futuros valores diferentes nos parâemtros de random forests ou até outros valores de divisão de test e train set, porem para uma primeira análise parece que trouxe bons resultados, mesmo com "apenas" aproximadamente 100 registros para os dados com todas as variáveis. Lembrando tambem que o comportamento do consumo após 2012 foi diferente do que antes. Talvez outras variáveis externas possam ser estudadas para incorporar no modelo para uma melhor acurácia, porém acredito que para uma previsão de consumo da indústria os resultados parecem ser satisfatórios.
+
+
+
